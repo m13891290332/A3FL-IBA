@@ -288,18 +288,28 @@ class FLer:
     def train_benign(self, participant_id, model, epoch):
         lr = self.get_lr(epoch)
         optimizer = torch.optim.SGD(model.parameters(), lr=lr,
-            momentum=self.helper.config.momentum,
-            weight_decay=self.helper.config.decay)
+                                    momentum=self.helper.config.momentum,
+                                    weight_decay=self.helper.config.decay)
         for internal_epoch in range(self.helper.config.retrain_times):
             total_loss = 0.0
             for inputs, labels in self.helper.train_data[participant_id]:
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cuda().to(dtype=torch.float32), labels.cuda()
+
+                print(f"Inputs shape before model: {inputs.shape}")  # 调试输入形状
                 output = model(inputs)
                 loss = self.criterion(output, labels)
 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
+                total_loss += loss.item()
+
+                # 显存管理
+                del inputs, labels, output
+                torch.cuda.empty_cache()
+
+            print(f"Epoch {epoch}, internal_epoch {internal_epoch}, loss: {total_loss}")
 
     def scale_up(self, model, curren_num_adv):
         clip_rate = 2/curren_num_adv
